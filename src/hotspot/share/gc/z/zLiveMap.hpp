@@ -63,7 +63,7 @@ private:
 
   bool claim_segment(BitMap::idx_t segment);
 
-  void reset(size_t index);
+  void reset(size_t index, bool reset_stats);
   void reset_segment(BitMap::idx_t segment);
 
   void iterate_segment(ObjectClosure* cl, BitMap::idx_t segment, uintptr_t page_start, size_t page_object_alignment_shift);
@@ -80,7 +80,9 @@ public:
   size_t live_bytes() const;
 
   bool get(size_t index) const;
-  bool set(size_t index, bool finalizable, bool& inc_live);
+  bool set(size_t index, bool finalizable, bool& inc_live, bool reset_stats = true);
+
+  bool set_relocated(size_t index, bool out_place);
 
   void inc_live(uint32_t objects, size_t bytes);
 

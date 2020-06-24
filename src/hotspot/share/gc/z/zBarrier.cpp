@@ -65,8 +65,9 @@ bool ZBarrier::should_mark_through(uintptr_t addr) {
 }
 
 template <bool follow, bool finalizable, bool publish>
-uintptr_t ZBarrier::mark(uintptr_t addr) {
+uintptr_t ZBarrier::mark(uintptr_t addr, bool mark_hot) {
   uintptr_t good_addr;
+  auto heap = ZHeap::heap();
 
   if (ZAddress::is_marked(addr)) {
     // Already marked, but try to mark though anyway
@@ -74,14 +75,24 @@ uintptr_t ZBarrier::mark(uintptr_t addr) {
   } else if (ZAddress::is_remapped(addr)) {
     // Already remapped, but also needs to be marked
     good_addr = ZAddress::good(addr);
+    mark_hot = true;
   } else {
     // Needs to be both remapped and marked
     good_addr = remap(addr);
   }
 
+  auto is_mutator_thread = publish == Publish;
+  if (is_mutator_thread) {
+    mark_hot = true;
+  }
+
   // Mark
   if (should_mark_through<finalizable>(addr)) {
     ZHeap::heap()->mark_object<follow, finalizable, publish>(good_addr);
+  }
+
+  if (mark_hot) {
+    heap->set_hot(good_addr);
   }
 
   if (finalizable) {
@@ -104,18 +115,19 @@ uintptr_t ZBarrier::remap(uintptr_t addr) {
   return ZHeap::heap()->remap_object(addr);
 }
 
-uintptr_t ZBarrier::relocate(uintptr_t addr) {
+uintptr_t ZBarrier::relocate(uintptr_t addr, bool is_hot) {
   assert(!ZAddress::is_good(addr), "Should not be good");
   assert(!ZAddress::is_weak_good(addr), "Should not be weak good");
-  return ZHeap::heap()->relocate_object(addr);
+
+  return ZHeap::heap()->relocate_object(addr, is_hot);
 }
 
 uintptr_t ZBarrier::relocate_or_mark(uintptr_t addr) {
-  return during_relocate() ? relocate(addr) : mark<Follow, Strong, Publish>(addr);
+  return during_relocate() ? relocate(addr, true) : mark<Follow, Strong, Publish>(addr);
 }
 
 uintptr_t ZBarrier::relocate_or_remap(uintptr_t addr) {
-  return during_relocate() ? relocate(addr) : remap(addr);
+  return during_relocate() ? relocate(addr, true) : remap(addr);
 }
 
 //
@@ -173,14 +185,42 @@ uintptr_t ZBarrier::keep_alive_barrier_on_phantom_oop_slow_path(uintptr_t addr) 
   return good_addr;
 }
 
+uintptr_t ZBarrier::keep_alive_barrier_on_phantom_root_oop_slow_path(uintptr_t addr) {
+  uintptr_t good_addr = weak_load_barrier_on_oop_slow_path(addr);
+  assert(ZHeap::heap()->is_object_live(good_addr), "Should be live");
+  // JVM has some internal non-strong roots with phantom strength.
+  ZHeap::heap()->set_hot(good_addr);
+  return good_addr;
+}
+
 //
 // Mark barrier
 //
 uintptr_t ZBarrier::mark_barrier_on_oop_slow_path(uintptr_t addr) {
   assert(during_mark(), "Invalid phase");
+  if (HotCycles == 0) {
+    return mark<Follow, Strong, Overflow>(addr);
+  }
 
-  // Mark
-  return mark<Follow, Strong, Overflow>(addr);
+  const uintptr_t good_addr = mark<Follow, Strong, Overflow>(addr);
+  assert(ZAddress::is_good(good_addr), "");
+  {
+    // If the object is already hot, heal it with good color; hence, fast path.
+    auto heap = ZHeap::heap();
+    if (ZAddress::is_remapped(addr)) {
+      return good_addr;
+    }
+    if (heap->is_object_considered_hot(good_addr)) {
+      return good_addr;
+    }
+  }
+  return ZAddress::finalizable_good(good_addr);
+}
+
+uintptr_t ZBarrier::mark_barrier_on_concurrent_root_oop_slow_path(uintptr_t addr) {
+  auto mark_hot = true;
+  auto good_addr = mark<Follow, Strong, Overflow>(addr, mark_hot);
+  return good_addr;
 }
 
 uintptr_t ZBarrier::mark_barrier_on_finalizable_oop_slow_path(uintptr_t addr) {
@@ -214,7 +254,7 @@ uintptr_t ZBarrier::relocate_barrier_on_root_oop_slow_path(uintptr_t addr) {
   assert(during_relocate(), "Invalid phase");
 
   // Relocate
-  return relocate(addr);
+  return relocate(addr, true);
 }
 
 //

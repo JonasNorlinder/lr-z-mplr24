@@ -68,6 +68,9 @@ public:
   bool is_pinned() const;
   void set_pinned();
 
+  bool is_in_pec() const;
+  size_t nentries() const;
+
   bool retain_page();
   void release_page();
 
@@ -76,6 +79,7 @@ public:
   uintptr_t insert(uintptr_t from_index, uintptr_t to_offset, ZForwardingCursor* cursor);
 
   void verify() const;
+  float population_raio() const;
 };
 
 #endif // SHARE_GC_Z_ZFORWARDING_HPP

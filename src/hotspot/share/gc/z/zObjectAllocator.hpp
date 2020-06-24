@@ -56,7 +56,9 @@ private:
   uintptr_t alloc_medium_object(size_t size, ZAllocationFlags flags);
   uintptr_t alloc_small_object_from_nonworker(size_t size, ZAllocationFlags flags);
   uintptr_t alloc_small_object_from_worker(size_t size, ZAllocationFlags flags);
+
   uintptr_t alloc_small_object(size_t size, ZAllocationFlags flags);
+
   uintptr_t alloc_object(size_t size, ZAllocationFlags flags);
 
   bool undo_alloc_large_object(ZPage* page);
@@ -72,6 +74,7 @@ public:
   uintptr_t alloc_object(size_t size);
 
   uintptr_t alloc_object_for_relocation(size_t size);
+
   void undo_alloc_object_for_relocation(ZPage* page, uintptr_t addr, size_t size);
 
   size_t used() const;

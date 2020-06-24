@@ -37,13 +37,14 @@ private:
   ZWorkers* const _workers;
 
   ZForwarding* forwarding_for_page(ZPage* page) const;
-  uintptr_t relocate_object_inner(ZForwarding* forwarding, uintptr_t from_index, uintptr_t from_offset) const;
+  uintptr_t relocate_object_inner(ZForwarding* forwarding, uintptr_t from_index, uintptr_t from_offset, bool is_hot) const;
   bool work(ZRelocationSetParallelIterator* iter);
 
 public:
   ZRelocate(ZWorkers* workers);
 
-  uintptr_t relocate_object(ZForwarding* forwarding, uintptr_t from_addr) const;
+  uintptr_t relocate_object(ZForwarding* forwarding, uintptr_t from_addr, bool is_hot = false) const;
+  uintptr_t relocate_object_in_pec(ZPage* page, uintptr_t from_addr, bool is_hot = false) const;
   uintptr_t forward_object(ZForwarding* forwarding, uintptr_t from_addr) const;
 
   void start();

@@ -49,6 +49,27 @@ inline uint32_t ZHeap::hash_oop(uintptr_t addr) const {
   return ZHash::address_to_uint32(offset);
 }
 
+inline void ZHeap::set_hot(uintptr_t addr) {
+  assert(addr != 0, "");
+  if (HotCycles == 0) {
+    return;
+  }
+  ZPage* page = _page_table.get(addr);
+  page->set_hot(addr);
+}
+
+// the hotness info bit
+inline bool ZHeap::is_object_hot(uintptr_t addr) const {
+  ZPage* page = _page_table.get(addr);
+  return page->is_object_hot(addr);
+}
+
+// an object could be *considered* hot if it's young or due to other heuristics
+inline bool ZHeap::is_object_considered_hot(uintptr_t addr) const {
+  ZPage* page = _page_table.get(addr);
+  return page->is_object_considered_hot(addr);
+}
+
 inline bool ZHeap::is_object_live(uintptr_t addr) const {
   ZPage* page = _page_table.get(addr);
   return page->is_object_live(addr);
@@ -92,18 +113,24 @@ inline void ZHeap::undo_alloc_object_for_relocation(uintptr_t addr, size_t size)
   _object_allocator.undo_alloc_object_for_relocation(page, addr, size);
 }
 
-inline uintptr_t ZHeap::relocate_object(uintptr_t addr) {
+inline uintptr_t ZHeap::relocate_object(uintptr_t addr, bool is_hot) {
   assert(ZGlobalPhase == ZPhaseRelocate, "Relocate not allowed");
 
   ZForwarding* const forwarding = _forwarding_table.get(addr);
   if (forwarding == NULL) {
+    if (UsePartialEvacuation) {
+      auto page = _page_table.get(addr);
+      if (page->is_relocatable() && page->type() == ZPageTypeSmall) {
+        return _relocate.relocate_object_in_pec(page, addr, is_hot);
+      }
+    }
     // Not forwarding
     return ZAddress::good(addr);
   }
 
   // Relocate object
   const bool retained = forwarding->retain_page();
-  const uintptr_t new_addr = _relocate.relocate_object(forwarding, addr);
+  const uintptr_t new_addr = _relocate.relocate_object(forwarding, addr, is_hot);
   if (retained) {
     forwarding->release_page();
   }
@@ -117,6 +144,17 @@ inline uintptr_t ZHeap::remap_object(uintptr_t addr) {
 
   ZForwarding* const forwarding = _forwarding_table.get(addr);
   if (forwarding == NULL) {
+    if (UsePartialEvacuation) {
+      auto page = _page_table.get(addr);
+      if (page->type() == ZPageTypeSmall) {
+        uintptr_t markword = ZOop::from_address(ZAddress::good(addr))->mark_raw().value();
+        if ((markword & 0b11UL) == 0b11UL) {
+          // relocated
+          return ZAddress::good(markword & ~0b11UL);
+        }
+      }
+    }
+    assert((ZOop::from_address(ZAddress::good(addr))->mark_raw().value() & 0b11UL) != 0b11UL, "");
     // Not forwarding
     return ZAddress::good(addr);
   }

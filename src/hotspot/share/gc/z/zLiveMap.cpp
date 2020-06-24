@@ -48,7 +48,7 @@ ZLiveMap::ZLiveMap(uint32_t size) :
     _bitmap(bitmap_size(size, nsegments)),
     _segment_shift(exact_log2(segment_size())) {}
 
-void ZLiveMap::reset(size_t index) {
+void ZLiveMap::reset(size_t index, bool reset_stats) {
   const uint32_t seqnum_initializing = (uint32_t)-1;
   bool contention = false;
 
@@ -59,6 +59,7 @@ void ZLiveMap::reset(size_t index) {
        seqnum = Atomic::load_acquire(&_seqnum)) {
     if ((seqnum != seqnum_initializing) &&
         (Atomic::cmpxchg(&_seqnum, seqnum, seqnum_initializing) == seqnum)) {
+      if (reset_stats) {
       // Reset marking information
       _live_bytes = 0;
       _live_objects = 0;
@@ -66,6 +67,7 @@ void ZLiveMap::reset(size_t index) {
       // Clear segment claimed/live bits
       segment_live_bits().clear();
       segment_claim_bits().clear();
+      }
 
       assert(_seqnum == seqnum_initializing, "Invalid");
 

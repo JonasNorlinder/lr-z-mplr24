@@ -69,6 +69,14 @@ private:
 public:
   static ZHeap* heap();
 
+  static void forward_table_insert(ZForwarding* forwarding) {
+    _heap->_forwarding_table.insert(forwarding);
+  }
+
+  static void forward_table_remove(ZForwarding* forwarding) {
+    _heap->_forwarding_table.remove(forwarding);
+  }
+
   ZHeap();
 
   bool is_initialized() const;
@@ -120,6 +128,10 @@ public:
   bool is_alloc_stalled() const;
   void check_out_of_memory();
 
+  void set_hot(uintptr_t addr);
+  bool is_object_hot(uintptr_t addr) const;
+  bool is_object_considered_hot(uintptr_t addr) const;
+
   // Marking
   bool is_object_live(uintptr_t addr) const;
   bool is_object_strongly_live(uintptr_t addr) const;
@@ -136,7 +148,7 @@ public:
 
   // Relocation
   void relocate_start();
-  uintptr_t relocate_object(uintptr_t addr);
+  uintptr_t relocate_object(uintptr_t addr, bool is_hot);
   uintptr_t remap_object(uintptr_t addr);
   void relocate();
 

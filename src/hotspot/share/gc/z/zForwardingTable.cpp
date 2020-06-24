@@ -32,6 +32,7 @@ ZForwardingTable::ZForwardingTable() :
     _map(ZAddressOffsetMax) {}
 
 void ZForwardingTable::insert(ZForwarding* forwarding) {
+  assert(forwarding, "");
   const uintptr_t offset = forwarding->start();
   const size_t size = forwarding->size();
 

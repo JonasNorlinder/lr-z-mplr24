@@ -387,6 +387,13 @@ public:
 void ZDriver::gc(GCCause::Cause cause) {
   ZDriverGCScope scope(cause);
 
+  const bool use_lazy_relocate = UseLazyRelocate;
+
+  if (use_lazy_relocate && ZGlobalSeqNum > 1) {
+    // Phase 9: Concurrent Relocate
+    concurrent_relocate();
+  }
+
   // Phase 1: Pause Mark Start
   pause_mark_start();
 
@@ -414,8 +421,10 @@ void ZDriver::gc(GCCause::Cause cause) {
   // Phase 8: Pause Relocate Start
   pause_relocate_start();
 
-  // Phase 9: Concurrent Relocate
-  concurrent_relocate();
+  if (!use_lazy_relocate) {
+    // Phase 9: Concurrent Relocate
+    concurrent_relocate();
+  }
 }
 
 void ZDriver::run_service() {

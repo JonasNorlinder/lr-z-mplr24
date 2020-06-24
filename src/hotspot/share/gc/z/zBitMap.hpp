@@ -33,10 +33,15 @@ private:
   bool par_set_bit_pair_finalizable(idx_t bit, bool& inc_live);
   bool par_set_bit_pair_strong(idx_t bit, bool& inc_live);
 
+  bool par_set_bit_pair_relocated(idx_t bit,
+      bm_word_t desire_pair_mask, bm_word_t alternative_pair_mask);;
 public:
   ZBitMap(idx_t size_in_bits);
 
   bool par_set_bit_pair(idx_t bit, bool finalizable, bool& inc_live);
+
+  bool par_set_bit_pair_relocated_out_place(idx_t bit);
+  bool par_set_bit_pair_relocated_in_place(idx_t bit);
 };
 
 #endif // SHARE_GC_Z_ZBITMAP_HPP

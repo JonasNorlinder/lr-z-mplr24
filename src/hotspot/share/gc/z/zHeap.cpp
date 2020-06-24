@@ -378,13 +378,7 @@ void ZHeap::select_relocation_set() {
   _page_allocator.disable_deferred_delete();
 
   // Select pages to relocate
-  selector.select(&_relocation_set);
-
-  // Setup forwarding table
-  ZRelocationSetIterator rs_iter(&_relocation_set);
-  for (ZForwarding* forwarding; rs_iter.next(&forwarding);) {
-    _forwarding_table.insert(forwarding);
-  }
+  selector.select(&_relocation_set, UsePartialEvacuation);
 
   // Update statistics
   ZStatRelocation::set_at_select_relocation_set(selector.stats());
@@ -392,12 +386,6 @@ void ZHeap::select_relocation_set() {
 }
 
 void ZHeap::reset_relocation_set() {
-  // Reset forwarding table
-  ZRelocationSetIterator iter(&_relocation_set);
-  for (ZForwarding* forwarding; iter.next(&forwarding);) {
-    _forwarding_table.remove(forwarding);
-  }
-
   // Reset relocation set
   _relocation_set.reset();
 }

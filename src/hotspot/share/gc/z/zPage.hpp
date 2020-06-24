@@ -30,6 +30,7 @@
 #include "gc/z/zVirtualMemory.hpp"
 #include "memory/allocation.hpp"
 
+class ZForwarding;
 class ZPage : public CHeapObj<mtGC> {
   friend class VMStructs;
   friend class ZList<ZPage>;
@@ -48,6 +49,8 @@ private:
   void assert_initialized() const;
 
   uint8_t type_from_size(size_t size) const;
+  ZLiveMap _hotmap;
+  uint32_t _weighted_live_bytes;
   const char* type_to_string() const;
 
   bool is_object_marked(uintptr_t addr) const;
@@ -76,6 +79,7 @@ public:
   uint8_t numa_id();
 
   bool is_allocating() const;
+  bool is_from_last_cycle() const;
   bool is_relocatable() const;
 
   uint64_t last_used() const;
@@ -89,15 +93,24 @@ public:
   ZPage* split_committed();
 
   bool is_in(uintptr_t addr) const;
+  bool is_in_range(uintptr_t addr) const;
 
   bool is_marked() const;
   bool is_object_live(uintptr_t addr) const;
   bool is_object_strongly_live(uintptr_t addr) const;
   bool mark_object(uintptr_t addr, bool finalizable, bool& inc_live);
+  bool mark_object_relocated(uintptr_t addr, bool out_place);
 
   void inc_live(uint32_t objects, size_t bytes);
+  void set_hot(uintptr_t addr);
+  bool is_object_hot(uintptr_t addr) const;
+  bool is_object_considered_hot(uintptr_t addr) const;
+
   uint32_t live_objects() const;
   size_t live_bytes() const;
+  void calc_weighted_live_bytes();
+  size_t weighted_live_bytes() const;
+  size_t hot_bytes() const;
 
   void object_iterate(ObjectClosure* cl);
 

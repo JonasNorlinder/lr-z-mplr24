@@ -57,6 +57,10 @@ inline void ZForwarding::set_pinned() {
   Atomic::store(&_pinned, true);
 }
 
+inline size_t ZForwarding::nentries() const {
+  return _entries.length();
+}
+
 inline bool ZForwarding::inc_refcount() {
   uint32_t refcount = Atomic::load(&_refcount);
 
@@ -92,6 +96,19 @@ inline void ZForwarding::release_page() {
 
 inline ZForwardingEntry* ZForwarding::entries() const {
   return _entries(this);
+}
+
+inline float ZForwarding::population_raio() const {
+  // float live_entry = _page->live_objects();
+  auto live_entry = 0;
+  for (ZForwardingCursor i = 0; i < _entries.length(); i++) {
+    const ZForwardingEntry entry = at(&i);
+    if (entry.populated()) {
+      live_entry++;
+    }
+  }
+
+  return static_cast<float>(live_entry) / _entries.length();
 }
 
 inline ZForwardingEntry ZForwarding::at(ZForwardingCursor* cursor) const {

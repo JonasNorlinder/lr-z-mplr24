@@ -76,4 +76,44 @@ inline bool ZBitMap::par_set_bit_pair(idx_t bit, bool finalizable, bool& inc_liv
   }
 }
 
+inline bool ZBitMap::par_set_bit_pair_relocated(idx_t bit,
+    bm_word_t desire_pair_mask, bm_word_t alternative_pair_mask) {
+  verify_index(bit);
+  volatile bm_word_t* const addr = word_addr(bit);
+  const bm_word_t pair_mask = bit_mask_pair(bit);
+  bm_word_t old_val = *addr;
+
+  do {
+    const bm_word_t desire_value = (old_val & ~pair_mask) | desire_pair_mask;
+    const bm_word_t alternative_value = (old_val & ~pair_mask) | alternative_pair_mask;
+    if (old_val == desire_value) {
+      return true;
+    }
+    if (old_val == alternative_value) {
+      return false;
+    }
+    const bm_word_t cur_val = Atomic::cmpxchg(addr, old_val, desire_value);
+    if (cur_val == old_val) {
+      return true;
+    }
+
+    // The value changed, retry
+    old_val = cur_val;
+  } while (true);
+}
+
+inline bool ZBitMap::par_set_bit_pair_relocated_out_place(idx_t bit) {
+  const bm_word_t out_place_pair_mask = (bm_word_t)0b10 << bit_in_word(bit);
+  const bm_word_t in_place_pair_mask = (bm_word_t)0b00 << bit_in_word(bit);
+
+  return par_set_bit_pair_relocated(bit, out_place_pair_mask, in_place_pair_mask);
+}
+
+inline bool ZBitMap::par_set_bit_pair_relocated_in_place(idx_t bit) {
+  const bm_word_t out_place_pair_mask = (bm_word_t)0b10 << bit_in_word(bit);
+  const bm_word_t in_place_pair_mask = (bm_word_t)0b00 << bit_in_word(bit);
+
+  return par_set_bit_pair_relocated(bit, in_place_pair_mask, out_place_pair_mask);
+}
+
 #endif // SHARE_GC_Z_ZBITMAP_INLINE_HPP

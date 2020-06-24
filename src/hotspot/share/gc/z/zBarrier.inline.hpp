@@ -113,7 +113,7 @@ inline void ZBarrier::self_heal(volatile oop* p, uintptr_t addr, uintptr_t heal_
   }
 
   assert(!fast_path(addr), "Invalid self heal");
-  assert(fast_path(heal_addr), "Invalid self heal");
+  // assert(fast_path(heal_addr), "Invalid self heal");
 
   for (;;) {
     // Heal
@@ -360,11 +360,18 @@ inline void ZBarrier::keep_alive_barrier_on_phantom_oop_field(volatile oop* p) {
   barrier<is_good_or_null_fast_path, keep_alive_barrier_on_phantom_oop_slow_path>(p, o);
 }
 
+inline void ZBarrier::keep_alive_barrier_on_phantom_concurrent_root_oop_field(volatile oop* p) {
+  // This operation is only valid when resurrection is blocked.
+  assert(ZResurrection::is_blocked(), "Invalid phase");
+  const oop o = Atomic::load(p);
+  barrier<is_good_or_null_fast_path, keep_alive_barrier_on_phantom_root_oop_slow_path>(p, o);
+}
+
 inline void ZBarrier::keep_alive_barrier_on_phantom_root_oop_field(oop* p) {
   // This operation is only valid when resurrection is blocked.
   assert(ZResurrection::is_blocked(), "Invalid phase");
   const oop o = *p;
-  root_barrier<is_good_or_null_fast_path, keep_alive_barrier_on_phantom_oop_slow_path>(p, o);
+  root_barrier<is_good_or_null_fast_path, keep_alive_barrier_on_phantom_root_oop_slow_path>(p, o);
 }
 
 inline void ZBarrier::keep_alive_barrier_on_oop(oop o) {
@@ -399,6 +406,19 @@ inline void ZBarrier::mark_barrier_on_oop_field(volatile oop* p, bool finalizabl
 inline void ZBarrier::mark_barrier_on_oop_array(volatile oop* p, size_t length, bool finalizable) {
   for (volatile const oop* const end = p + length; p < end; p++) {
     mark_barrier_on_oop_field(p, finalizable);
+  }
+}
+
+inline void ZBarrier::mark_barrier_on_concurrent_root_oop_field(volatile oop* p) {
+  const oop o = Atomic::load(p);
+
+  const uintptr_t addr = ZOop::to_address(o);
+  if (ZAddress::is_good(addr)) {
+    // Mark through good oop
+    mark_barrier_on_concurrent_root_oop_slow_path(addr);
+  } else {
+    // Mark through bad oop
+    barrier<is_good_or_null_fast_path, mark_barrier_on_concurrent_root_oop_slow_path>(p, o);
   }
 }
 

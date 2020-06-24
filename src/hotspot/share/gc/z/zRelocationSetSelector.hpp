@@ -94,8 +94,11 @@ public:
   ~ZRelocationSetSelectorGroup();
 
   void register_live_page(ZPage* page);
+  void register_live_page_nonzero(ZPage* page);
   void register_garbage_page(ZPage* page);
+
   void select();
+  void select_all();
 
   ZPage* const* selected() const;
   size_t nselected() const;
@@ -109,6 +112,9 @@ private:
   ZRelocationSetSelectorGroup _medium;
   ZRelocationSetSelectorGroup _large;
 
+  size_t _small_live_bytes = 0;
+  size_t _small_hot_bytes = 0;
+
   size_t total() const;
   size_t empty() const;
   size_t compacting_from() const;
@@ -119,7 +125,7 @@ public:
 
   void register_live_page(ZPage* page);
   void register_garbage_page(ZPage* page);
-  void select(ZRelocationSet* relocation_set);
+  void select(ZRelocationSet* relocation_set, bool use_partial_evacuation);
 
   ZRelocationSetSelectorStats stats() const;
 };

@@ -37,7 +37,8 @@ ZPage::ZPage(const ZVirtualMemory& vmem, const ZPhysicalMemory& pmem) :
     _top(start()),
     _livemap(object_max_count()),
     _last_used(0),
-    _physical(pmem) {
+    _physical(pmem),
+    _hotmap(object_max_count()) {
   assert_initialized();
 }
 
@@ -49,7 +50,8 @@ ZPage::ZPage(uint8_t type, const ZVirtualMemory& vmem, const ZPhysicalMemory& pm
     _top(start()),
     _livemap(object_max_count()),
     _last_used(0),
-    _physical(pmem) {
+    _physical(pmem),
+    _hotmap(object_max_count()) {
   assert_initialized();
 }
 
@@ -69,6 +71,7 @@ void ZPage::reset() {
   _seqnum = ZGlobalSeqNum;
   _top = start();
   _livemap.reset();
+  _hotmap.reset();
   _last_used = 0;
 }
 
@@ -76,6 +79,7 @@ ZPage* ZPage::retype(uint8_t type) {
   assert(_type != type, "Invalid retype");
   _type = type;
   _livemap.resize(object_max_count());
+  _hotmap.resize(object_max_count());
   return this;
 }
 
@@ -92,6 +96,7 @@ ZPage* ZPage::split(uint8_t type, size_t size) {
   _type = type_from_size(_virtual.size());
   _top = start();
   _livemap.resize(object_max_count());
+  _hotmap.resize(object_max_count());
 
   // Create new page, inherit _seqnum and _last_used
   ZPage* const page = new ZPage(type, vmem, pmem);

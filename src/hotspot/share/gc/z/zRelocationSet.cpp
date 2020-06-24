@@ -23,6 +23,7 @@
 
 #include "precompiled.hpp"
 #include "gc/z/zForwarding.hpp"
+#include "gc/z/zForwarding.inline.hpp"
 #include "gc/z/zRelocationSet.hpp"
 #include "memory/allocation.hpp"
 
@@ -51,6 +52,5 @@ void ZRelocationSet::populate(ZPage* const* group0, size_t ngroup0,
 void ZRelocationSet::reset() {
   for (size_t i = 0; i < _nforwardings; i++) {
     ZForwarding::destroy(_forwardings[i]);
-    _forwardings[i] = NULL;
   }
 }

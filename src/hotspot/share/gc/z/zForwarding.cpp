@@ -35,10 +35,13 @@ ZForwarding* ZForwarding::create(ZPage* page) {
   // double the number of entries actually inserted.
   assert(page->live_objects() > 0, "Invalid value");
   const size_t nentries = round_up_power_of_2(page->live_objects() * 2);
-  return ::new (AttachedArray::alloc(nentries)) ZForwarding(page, nentries);
+  auto forwarding = ::new (AttachedArray::alloc(nentries)) ZForwarding(page, nentries);
+  ZHeap::forward_table_insert(forwarding);
+  return forwarding;
 }
 
 void ZForwarding::destroy(ZForwarding* forwarding) {
+  ZHeap::forward_table_remove(forwarding);
   AttachedArray::free(forwarding);
 }
 

@@ -632,7 +632,8 @@ void ZMark::work(uint64_t timeout_in_millis) {
 class ZMarkConcurrentRootsIteratorClosure : public ZRootsIteratorClosure {
 public:
   virtual void do_oop(oop* p) {
-    ZBarrier::mark_barrier_on_oop_field(p, false /* finalizable */);
+    // ZBarrier::mark_barrier_on_oop_field(p, false /* finalizable */);
+    ZBarrier::mark_barrier_on_concurrent_root_oop_field(p);
   }
 
   virtual void do_oop(narrowOop* p) {

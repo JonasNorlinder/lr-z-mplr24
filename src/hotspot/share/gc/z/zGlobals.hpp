@@ -27,6 +27,7 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
 #include CPU_HEADER(gc/z/zGlobals)
+#include "runtime/globals_extension.hpp"
 
 // Collector name
 const char* const ZName                         = "The Z Garbage Collector";
@@ -150,5 +151,19 @@ const size_t      ZMarkTerminateFlushMax        = 3;
 
 // Try complete mark timeout
 const uint64_t    ZMarkCompleteTimeout          = 1; // ms
+
+struct HGC {
+  static inline bool should_freeze_in_cycle(uint32_t seq_num) {
+    if (HotCycles == 0) {
+      return false;
+    }
+    if (seq_num < 2) {
+      // we "performed" GC with freezing on startup
+      return true;
+    }
+    // freezing for seq: 1+F, 1+F+F...
+    return ((seq_num - 1) % HotCycles == 0);
+  }
+};
 
 #endif // SHARE_GC_Z_ZGLOBALS_HPP

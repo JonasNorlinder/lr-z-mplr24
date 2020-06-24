@@ -167,6 +167,24 @@
   product(bool, UseZGC, false,                                              \
           "Use the Z garbage collector")                                    \
                                                                             \
+  product(bool, UsePartialEvacuation, false,                                \
+          "Use partial evacuation for cold objects along with ZGC")         \
+                                                                            \
+  product(bool, UseLazyRelocate, false,                                     \
+          "Use lazy relocation along with ZGC")                             \
+                                                                            \
+  product(bool, UseRelocateAllSmallPages, false,                            \
+          "Use relocate all small pages unconditionally ZGC")               \
+                                                                            \
+  product(uint, HotCycles, 0,                                               \
+          "refreshing hotness info every n cycles; 0 disables hot info")    \
+                                                                            \
+  product(uint, MinRelocatableAge, 1,                                       \
+          ">=1; #GC cycle to wait before relocating the page")              \
+                                                                            \
+  product(uint, ColdConfidence, 0,                                          \
+          "% of cold objects are treated as dead objects")                  \
+                                                                            \
   product(bool, UseShenandoahGC, false,                                     \
           "Use the Shenandoah garbage collector")                           \
                                                                             \

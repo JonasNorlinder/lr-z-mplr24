@@ -41,6 +41,7 @@ public:
 
   void populate(ZPage* const* group0, size_t ngroup0,
                 ZPage* const* group1, size_t ngroup1);
+
   void reset();
 };
 

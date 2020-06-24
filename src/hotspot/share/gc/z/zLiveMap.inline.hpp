@@ -102,11 +102,11 @@ inline bool ZLiveMap::get(size_t index) const {
          _bitmap.at(index);          // Object is marked
 }
 
-inline bool ZLiveMap::set(size_t index, bool finalizable, bool& inc_live) {
+inline bool ZLiveMap::set(size_t index, bool finalizable, bool& inc_live, bool reset_stats) {
   if (!is_marked()) {
     // First object to be marked during this
     // cycle, reset marking information.
-    reset(index);
+    reset(index, reset_stats);
   }
 
   const BitMap::idx_t segment = index_to_segment(index);
@@ -117,6 +117,16 @@ inline bool ZLiveMap::set(size_t index, bool finalizable, bool& inc_live) {
   }
 
   return _bitmap.par_set_bit_pair(index, finalizable, inc_live);
+}
+
+inline bool ZLiveMap::set_relocated(size_t index, bool out_place) {
+  assert(is_marked(), "");
+  assert(is_segment_live(index_to_segment(index)), "");
+
+  if (out_place) {
+    return _bitmap.par_set_bit_pair_relocated_out_place(index);
+  }
+  return _bitmap.par_set_bit_pair_relocated_in_place(index);
 }
 
 inline void ZLiveMap::inc_live(uint32_t objects, size_t bytes) {

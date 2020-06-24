@@ -41,12 +41,14 @@ inline bool ZRelocationSetIteratorImpl<parallel>::next(ZForwarding** forwarding)
       const size_t next = Atomic::fetch_and_add(&_next, 1u);
       if (next < nforwardings) {
         *forwarding = _relocation_set->_forwardings[next];
+        assert(*forwarding, "");
         return true;
       }
     }
   } else {
     if (_next < nforwardings) {
       *forwarding = _relocation_set->_forwardings[_next++];
+      assert(*forwarding, "");
       return true;
     }
   }

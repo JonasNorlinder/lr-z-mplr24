@@ -91,7 +91,7 @@ void ZRelocate::start() {
   _workers->run_parallel(&task);
 }
 
-uintptr_t ZRelocate::relocate_object_inner(ZForwarding* forwarding, uintptr_t from_index, uintptr_t from_offset) const {
+uintptr_t ZRelocate::relocate_object_inner(ZForwarding* forwarding, uintptr_t from_index, uintptr_t from_offset, bool is_hot) const {
   ZForwardingCursor cursor;
 
   // Lookup forwarding entry
@@ -111,7 +111,9 @@ uintptr_t ZRelocate::relocate_object_inner(ZForwarding* forwarding, uintptr_t fr
   // Allocate object
   const uintptr_t from_good = ZAddress::good(from_offset);
   const size_t size = ZUtils::object_size(from_good);
-  const uintptr_t to_good = ZHeap::heap()->alloc_object_for_relocation(size);
+  auto heap = ZHeap::heap();
+  const uintptr_t to_good = heap->alloc_object_for_relocation(size);
+  // const uintptr_t to_good = ZHeap::heap()->alloc_object_for_relocation(size);
   if (to_good == 0) {
     // Failed, in-place forward
     return forwarding->insert(from_index, from_offset, &cursor);
@@ -135,15 +137,15 @@ uintptr_t ZRelocate::relocate_object_inner(ZForwarding* forwarding, uintptr_t fr
                 ZThread::id(), ZThread::name(), p2i(forwarding), cursor, from_good, size);
 
   // Try undo allocation
-  ZHeap::heap()->undo_alloc_object_for_relocation(to_good, size);
+  heap->undo_alloc_object_for_relocation(to_good, size);
 
   return to_offset_final;
 }
 
-uintptr_t ZRelocate::relocate_object(ZForwarding* forwarding, uintptr_t from_addr) const {
+uintptr_t ZRelocate::relocate_object(ZForwarding* forwarding, uintptr_t from_addr, bool is_hot) const {
   const uintptr_t from_offset = ZAddress::offset(from_addr);
   const uintptr_t from_index = (from_offset - forwarding->start()) >> forwarding->object_alignment_shift();
-  const uintptr_t to_offset = relocate_object_inner(forwarding, from_index, from_offset);
+  const uintptr_t to_offset = relocate_object_inner(forwarding, from_index, from_offset, is_hot);
 
   if (from_offset == to_offset) {
     // In-place forwarding, pin page
@@ -151,6 +153,60 @@ uintptr_t ZRelocate::relocate_object(ZForwarding* forwarding, uintptr_t from_add
   }
 
   return ZAddress::good(to_offset);
+}
+
+uintptr_t ZRelocate::relocate_object_in_pec(ZPage* page, uintptr_t from_addr, bool is_hot) const {
+  from_addr = ZAddress::good(from_addr);
+
+  oop o = ZOop::from_address(from_addr);
+  auto old_mark = o->mark_raw();
+  const uintptr_t old_v = old_mark.value();
+  assert(old_v != 0, "");
+  if ((old_v & 0b11UL) == 0b11UL) {
+    // already out-place relocated
+    return ZAddress::good(old_v & ~0b11UL);
+  }
+
+  const size_t size = ZUtils::object_size(from_addr);
+  const uintptr_t to_addr = ZHeap::heap()->alloc_object_for_relocation(size);
+  // const uintptr_t to_addr = 0;
+  if (to_addr == 0) {
+    if (page->mark_object_relocated(from_addr, false)) {
+      // in-place relocaiton
+      return ZAddress::good(from_addr);
+    }
+    // out-place relocaiton
+    while ((o->mark_raw().value() & 0b11UL) != 0b11UL) ;
+  } else {
+    ZUtils::object_copy(from_addr, to_addr, size);
+    assert((to_addr & 0b11UL) != 0b11UL, "");
+    if (!page->mark_object_relocated(from_addr, true)) {
+      // in-place relocaiton
+      ZHeap::heap()->undo_alloc_object_for_relocation(to_addr, size);
+      return ZAddress::good(from_addr);
+    }
+    // out-place relocation
+    uintptr_t new_v = ZAddress::offset(to_addr) | 0b11UL;
+    auto prev_v = Atomic::cmpxchg((volatile uintptr_t*)o->mark_addr_raw(), old_v, new_v);
+    if (prev_v == old_v) {
+      assert((o->mark_raw().value() & 0b11UL) == 0b11UL, "");
+      assert(ZUtils::object_size(from_addr) == size, "same size");
+      return to_addr;
+    }
+
+    assert(o->mark_raw().value() == prev_v, "stable");
+    // Try undo allocation
+    ZHeap::heap()->undo_alloc_object_for_relocation(to_addr, size);
+  }
+
+  // Relocation contention
+  ZStatInc(ZCounterRelocationContention);
+  // log_trace(gc)("Relocation contention, thread: " PTR_FORMAT " (%s), forwarding: " PTR_FORMAT
+  //               ",  oop: " PTR_FORMAT ", size: " SIZE_FORMAT,
+  //               ZThread::id(), ZThread::name(), p2i(forwarding), from_addr, size);
+
+  assert((o->mark_raw().value() & 0b11UL) == 0b11UL, "");
+  return ZAddress::good(o->mark_raw().value() & ~0b11UL);
 }
 
 uintptr_t ZRelocate::forward_object(ZForwarding* forwarding, uintptr_t from_addr) const {

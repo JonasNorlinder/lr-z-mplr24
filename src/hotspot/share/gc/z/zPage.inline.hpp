@@ -150,6 +150,10 @@ inline bool ZPage::is_allocating() const {
   return _seqnum == ZGlobalSeqNum;
 }
 
+inline bool ZPage::is_from_last_cycle() const {
+  return _seqnum == ZGlobalSeqNum - 1;
+}
+
 inline bool ZPage::is_relocatable() const {
   return _seqnum < ZGlobalSeqNum;
 }
@@ -165,6 +169,11 @@ inline void ZPage::set_last_used() {
 inline bool ZPage::is_in(uintptr_t addr) const {
   const uintptr_t offset = ZAddress::offset(addr);
   return offset >= start() && offset < top();
+}
+
+inline bool ZPage::is_in_range(uintptr_t addr) const {
+  const uintptr_t offset = ZAddress::offset(addr);
+  return offset >= start() && offset < end();
 }
 
 inline bool ZPage::is_marked() const {
@@ -200,8 +209,68 @@ inline bool ZPage::mark_object(uintptr_t addr, bool finalizable, bool& inc_live)
   return _livemap.set(index, finalizable, inc_live);
 }
 
+inline bool ZPage::mark_object_relocated(uintptr_t addr, bool out_place) {
+  assert(ZGlobalPhase == ZPhaseRelocate, "");
+  assert(is_relocatable(), "Invalid page state");
+  assert(is_in(addr), "Invalid address");
+
+  const size_t index = ((ZAddress::offset(addr) - start()) >> object_alignment_shift()) * 2;
+  return _livemap.set_relocated(index, out_place);
+}
+
 inline void ZPage::inc_live(uint32_t objects, size_t bytes) {
   _livemap.inc_live(objects, bytes);
+}
+
+inline void ZPage::set_hot(uintptr_t addr) {
+  assert(ZGlobalSeqNum >= 2, "");
+  assert(HotCycles != 0, "");
+  assert(is_in_range(addr), "into this page");
+  // we are not recording hotness info for large objects, since such info is
+  // too coarse grained: access to any of its fields will rendere the whole
+  // obect hot
+  if (type() == ZPageTypeLarge) {
+    return;
+  }
+  if (ZGlobalSeqNum - _seqnum <= MinRelocatableAge) {
+    return;
+  }
+  if (ZGlobalPhase != ZPhaseRelocate) {
+    assert(is_in(addr), "Invalid address");
+  }
+  size_t index = ((ZAddress::offset(addr) - start()) >> object_alignment_shift()) * 2;
+  // reset hotmap if we did freezing in previous cycle
+  auto reset_stats = HGC::should_freeze_in_cycle(ZGlobalSeqNum - 1);
+  bool inc_live;
+  auto success = _hotmap.set(index, true, inc_live, reset_stats);
+  assert(success == inc_live, "");
+  // TODO(albert): it's unclear to me if we should collect hot bytes here or
+  // count them by iterating over live map and check if that object is hot
+  if (success && ZGlobalPhase == ZPhaseMark) {
+    // only make sense before EC is selected
+    const size_t size = ZUtils::object_size(ZAddress::good(addr));
+    const size_t aligned_size = align_up(size, object_alignment());
+    _hotmap.inc_live(1, aligned_size);
+  }
+}
+
+inline bool ZPage::is_object_hot(uintptr_t addr) const {
+  assert(is_in_range(addr), "Invalid address");
+  assert(HotCycles != 0, "");
+  const size_t index = ((ZAddress::offset(addr) - start()) >> object_alignment_shift()) * 2;
+  return _hotmap.get(index);
+}
+
+inline bool ZPage::is_object_considered_hot(uintptr_t addr) const {
+  assert(is_in_range(addr), "Invalid address");
+  assert(HotCycles != 0, "");
+  if (type() == ZPageTypeLarge) {
+    return true;
+  }
+  if (ZGlobalSeqNum - _seqnum <= MinRelocatableAge) {
+    return true;
+  }
+  return is_object_hot(addr);
 }
 
 inline uint32_t ZPage::live_objects() const {
@@ -212,6 +281,41 @@ inline uint32_t ZPage::live_objects() const {
 inline size_t ZPage::live_bytes() const {
   assert(is_marked(), "Should be marked");
   return _livemap.live_bytes();
+}
+
+inline void ZPage::calc_weighted_live_bytes() {
+  assert(is_marked(), "Should be marked");
+  assert(MinRelocatableAge >= 1, "");
+  if (!HGC::should_freeze_in_cycle(ZGlobalSeqNum)
+      || ZGlobalSeqNum - _seqnum <= MinRelocatableAge
+      ) {
+    _weighted_live_bytes = live_bytes();
+    return;
+  }
+
+  if (type() == ZPageTypeSmall && ColdConfidence != 0) {
+    auto hot_bytes = MIN2(_hotmap.live_bytes(), live_bytes());
+    auto cold_bytes = live_bytes() - hot_bytes;
+    if (cold_bytes == live_bytes()) {
+      _weighted_live_bytes = cold_bytes;
+      return;
+    }
+    _weighted_live_bytes = hot_bytes + (size_t) (cold_bytes * (1 -  ColdConfidence / 100.0));
+    return;
+  }
+
+  _weighted_live_bytes = live_bytes();
+}
+
+inline size_t ZPage::weighted_live_bytes() const {
+  assert(is_marked(), "Should be marked");
+  return _weighted_live_bytes;
+}
+
+inline size_t ZPage::hot_bytes() const {
+  assert(is_marked(), "Should be marked");
+  assert(ZGlobalPhase == ZPhaseMarkCompleted, "");
+  return _hotmap.live_bytes();
 }
 
 inline void ZPage::object_iterate(ObjectClosure* cl) {

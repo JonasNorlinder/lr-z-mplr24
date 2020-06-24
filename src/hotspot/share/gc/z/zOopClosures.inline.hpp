@@ -77,7 +77,11 @@ inline bool ZPhantomIsAliveObjectClosure::do_object_b(oop o) {
 }
 
 inline void ZPhantomKeepAliveOopClosure::do_oop(oop* p) {
-  ZBarrier::keep_alive_barrier_on_phantom_oop_field(p);
+  // ZBarrier::keep_alive_barrier_on_phantom_oop_field(p);
+  ZBarrier::keep_alive_barrier_on_phantom_root_oop_field(p);
+
+  // In STW2: process_weak_roots
+  assert(Atomic::load((volatile oop*)p) != nullptr, "");
 }
 
 inline void ZPhantomKeepAliveOopClosure::do_oop(narrowOop* p) {
