@@ -21,11 +21,15 @@
  * questions.
  */
 
+#include "gc/z/zGlobals.hpp"
 #include "precompiled.hpp"
+#include "gc/z/zHeap.inline.hpp"
 #include "gc/z/zForwarding.hpp"
 #include "gc/z/zForwarding.inline.hpp"
 #include "gc/z/zRelocationSet.hpp"
 #include "memory/allocation.hpp"
+#include "runtime/globals.hpp"
+#include "utilities/debug.hpp"
 
 ZRelocationSet::ZRelocationSet() :
     _forwardings(NULL),
@@ -50,7 +54,17 @@ void ZRelocationSet::populate(ZPage* const* group0, size_t ngroup0,
 }
 
 void ZRelocationSet::reset() {
+  size_t relocated_bytes = 0;
   for (size_t i = 0; i < _nforwardings; i++) {
+    auto fw = _forwardings[i];
+    if (fw->size() == ZPageSizeSmall) {
+      relocated_bytes += fw->_live_bytes;
+    }
     ZForwarding::destroy(_forwardings[i]);
+  }
+  log_info(gc)("EC count: %zd", relocated_bytes);
+  if (UsePartialEvacuation) {
+    log_info(gc)("PEC count: %zd", ZHeap::heap()->size_pec_relocated);
+    ZHeap::heap()->size_pec_relocated = 0;
   }
 }

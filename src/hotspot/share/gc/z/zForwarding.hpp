@@ -57,6 +57,8 @@ private:
   ZForwarding(ZPage* page, size_t nentries);
 
 public:
+  size_t               _live_bytes;
+
   static ZForwarding* create(ZPage* page);
   static void destroy(ZForwarding* forwarding);
 

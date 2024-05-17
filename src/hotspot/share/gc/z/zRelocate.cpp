@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "gc/z/zThreadLocalData.hpp"
 #include "precompiled.hpp"
 #include "gc/z/zAddress.inline.hpp"
 #include "gc/z/zBarrier.inline.hpp"
@@ -37,6 +38,7 @@
 #include "gc/z/zThreadLocalAllocBuffer.hpp"
 #include "gc/z/zWorkers.hpp"
 #include "logging/log.hpp"
+#include "runtime/atomic.hpp"
 
 static const ZStatCounter ZCounterRelocationContention("Contention", "Relocation Contention", ZStatUnitOpsPerSecond);
 
@@ -191,6 +193,7 @@ uintptr_t ZRelocate::relocate_object_in_pec(ZPage* page, uintptr_t from_addr, bo
     if (prev_v == old_v) {
       assert((o->mark_raw().value() & 0b11UL) == 0b11UL, "");
       assert(ZUtils::object_size(from_addr) == size, "same size");
+      Atomic::add(&ZHeap::heap()->size_pec_relocated, size, memory_order_relaxed);
       return to_addr;
     }
 

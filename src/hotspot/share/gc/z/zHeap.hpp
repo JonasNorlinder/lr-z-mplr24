@@ -67,6 +67,7 @@ private:
   void fixup_partial_loads();
 
 public:
+  size_t size_pec_relocated = 0;
   static ZHeap* heap();
 
   static void forward_table_insert(ZForwarding* forwarding) {
