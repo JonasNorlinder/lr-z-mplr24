@@ -48,7 +48,8 @@ ZForwarding::ZForwarding(ZPage* page, size_t nentries) :
     _entries(nentries),
     _page(page),
     _refcount(1),
-    _pinned(false) {}
+    _pinned(false),
+    _live_bytes(page->live_bytes()) {}
 
 void ZForwarding::verify() const {
   guarantee(_refcount > 0, "Invalid refcount");
