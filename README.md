@@ -19,3 +19,8 @@ Note that `lr-z` also contains an extraction of the best configuration from [HCS
 * LR-Z `-XX:+UseZGC -XX:+UsePartialEvacuation -XX:+UseLazyRelocate`
 
 All GCs except HCSGC/LR-Z were evaluated using [JDK 15+36](https://github.com/openjdk/jdk/releases/tag/jdk-15%2B36) which can be found in the branch `jdk`.
+
+## Notes on building
+To configure building you should run (after checking out a branch) `bash configure --with-boot-jdk=/home/user/jdk/candidates/jdk-15.0.2 --with-extra-cxxflags='-std=c++11'`. To build you run `make CONF=release`.
+
+`boot-jdk` needs to be version 14 or 15 and can be downloaded from https://jdk.java.net/archive/. Note that we only support Linux/x86.
