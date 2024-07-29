@@ -1,6 +1,6 @@
 # Mutator-Driven Object Placement using Load Barriers
 
-This repository contains the code used in the paper [Mutator-Driven Object Placement using Load Barriers](https://doi.org/10.1145/3679007.3685060).
+This repository contains the implementation of LR-Z used in the paper [Mutator-Driven Object Placement using Load Barriers](https://doi.org/10.1145/3679007.3685060).
 
 ## Comparing patches
 
